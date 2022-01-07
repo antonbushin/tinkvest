@@ -1,32 +1,17 @@
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
+import asyncio
+from telegramm_bot import dp
 
 
-def create_video(n):
-    global X
-    X = np.random.binomial(1, 0.3, size=(n, n))
+async def scheduled(wait_for):
+    while True:
+        await asyncio.sleep(wait_for)
 
-    fig = plt.figure()
-    im = plt.imshow(X, cmap=plt.cm.gray)
-
-    def animate(t):
-        global X
-        X = np.roll(X, +1, axis=0)
-        im.set_array(X)
-        return im,
-
-    anim = FuncAnimation(
-        fig,
-        animate,
-        frames=100,
-        interval=1000 / 30,
-        blit=True
-    )
-
-    plt.show()
-
-    return anim
+        print('Время пришло!')
 
 
-anim = create_video(10)
+async def main():
+    await dp.start_polling()
+
+
+if __name__ == '__main__':
+    asyncio.run(main())
