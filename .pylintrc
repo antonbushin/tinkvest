@@ -1,0 +1,34 @@
+[MASTER]
+init-hook="from pylint.config import find_pylintrc; import os, sys; sys.path.append(os.path.dirname(find_pylintrc()))"
+# Разделенный запятыми список имен пакетов или модулей, из которых расширения C могут быть загружены
+extension-pkg-whitelist=pydantic, orjson
+# Pylint пытается угадать распространенную неправильную конфигурацию и выдать удобные подсказки вместо ложноположительных сообщений об ошибках
+suggestion-mode=yes
+
+[BASIC]
+argument-naming-style=snake_case
+attr-naming-style=snake_case
+class-attribute-naming-style=any
+class-naming-style=PascalCase
+const-naming-style=UPPER_CASE
+function-naming-style=snake_case
+# Допустимые имена переменных, разделитель - запятая
+good-names=df, e, i
+method-naming-style=snake_case
+module-naming-style=snake_case
+variable-naming-style=snake_case
+
+[LOGGING]
+# Стиль формата, используемый для проверки строки формата журнала. `старый` означает использование форматирования %, а `новый` – для форматирования `{}`
+logging-format-style=old
+logging-modules=logging
+
+[SIMILARITIES]
+# Игнорировать комментарии при вычислении сходства
+ignore-comments=yes
+# Игнорировать строки документации при вычислении сходства
+ignore-docstrings=yes
+# Игнорировать импорты документации при вычислении сходства
+ignore-imports=no
+# Минимальное количество строк для сравнения
+min-similarity-lines=4

@@ -1,23 +1,21 @@
+"""Реализация поведения Телеграм-бота с aiogram"""
+
 from aiogram import Bot, Dispatcher, types
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
-from aiogram.dispatcher import DEFAULT_RATE_LIMIT, FSMContext
+from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters import Text
 from aiogram.dispatcher.filters.state import State, StatesGroup
-from aiogram.dispatcher.handler import CancelHandler, current_handler
-from aiogram.dispatcher.middlewares import BaseMiddleware
 from aiogram.types import ParseMode
 from aiogram.utils import markdown as md
-from aiogram.utils.exceptions import Throttled
-import logging
 import requests
-import asyncio
 
 from tinkvest.project_secrets.tokens import TELEGRAMM_TOKEN
 from tinkvest.utils.talker import talker_answer
 from tinkvest.tinkoff_broker_api import session_data
+from tinkvest.utils.logger import logger
+from tinkvest import constants
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+logger = logger(__name__)
 
 bot = Bot(token=TELEGRAMM_TOKEN)
 
@@ -27,6 +25,7 @@ dp = Dispatcher(bot, storage=storage)
 
 @dp.inline_handler()
 async def inline_echo(inline_query: types.InlineQuery):
+    """Обработка запросов inline_query"""
     text = inline_query.query or "A"
     print("text:", text)
     items = []
@@ -52,12 +51,14 @@ async def inline_echo(inline_query: types.InlineQuery):
 
 @dp.chosen_inline_handler()
 async def chosen_handler(chosen_result: types.ChosenInlineResult):
+    """Обработка результатов выбора inline_query"""
     res = chosen_result
-    logging.info(f"{res.result_id} ({res.query}), u: {res.from_user.id}")
+    logger.info("result_id: %s, query: %s, user.id: %s", res.result_id, res.query, res.from_user.id)
 
 
 # States
-class Form(StatesGroup):
+class WelcomeForm(StatesGroup):
+    """Приветственная форма"""
     name = State()
     age = State()
     gender = State()
@@ -65,44 +66,45 @@ class Form(StatesGroup):
 
 @dp.message_handler(commands='start')
 async def cmd_start(message: types.Message):
-    await Form.name.set()
+    """Обработка команды start"""
+    await WelcomeForm.name.set()
     await message.reply("Привет! Как тебя зовут?")
 
 
 # You can use state '*' if you need to handle all states
 @dp.message_handler(state='*', commands='cancel')
-@dp.message_handler(Text(equals='cancel', ignore_case=True), state='*')
+@dp.message_handler(Text(equals=constants.STOP_WORDS, ignore_case=True), state='*')
 async def cancel_handler(message: types.Message, state: FSMContext):
-    """Allow user to cancel any action"""
+    """Позволяет выйти из сценария"""
     current_state = await state.get_state()
     if current_state is None:
         return
 
-    logging.info('Cancelling state %r', current_state)
+    logger.info('Cancelling state %r', current_state)
     await state.finish()
-    await message.reply('Закончили', reply_markup=types.ReplyKeyboardRemove())
+    await message.reply('Ок, закончили', reply_markup=types.ReplyKeyboardRemove())
 
 
-@dp.message_handler(state=Form.name)
+@dp.message_handler(state=WelcomeForm.name)
 async def process_name(message: types.Message, state: FSMContext):
-    """Process user name"""
+    """Сохранение имени пользователя"""
     async with state.proxy() as data:
         data['name'] = message.text
 
-    await Form.next()
+    await WelcomeForm.next()
     await message.reply("Сколько тебе лет?")
 
 
-@dp.message_handler(lambda message: not message.text.isdigit(), state=Form.age)
+@dp.message_handler(lambda message: not message.text.isdigit(), state=WelcomeForm.age)
 async def process_age_invalid(message: types.Message):
-    """If age is invalid"""
+    """Валидация возраста пользователя"""
     return await message.reply("Возраст должен быть числом.\nСколько тебе лет? (Только цифры)")
 
 
-@dp.message_handler(lambda message: message.text.isdigit(), state=Form.age)
+@dp.message_handler(lambda message: message.text.isdigit(), state=WelcomeForm.age)
 async def process_age(message: types.Message, state: FSMContext):
-    # Update state and data
-    await Form.next()
+    """Сохранение возраста пользователя"""
+    await WelcomeForm.next()
     await state.update_data(age=int(message.text))
 
     # Configure ReplyKeyboardMarkup
@@ -113,13 +115,15 @@ async def process_age(message: types.Message, state: FSMContext):
     await message.reply("Какоой у тебя пол?", reply_markup=markup)
 
 
-@dp.message_handler(lambda message: message.text not in ["Мужской", "Женский", "Другой"], state=Form.gender)
+@dp.message_handler(lambda message: message.text not in constants.GENDERS, state=WelcomeForm.gender)
 async def process_gender_invalid(message: types.Message):
+    """Валидация пола пользователя"""
     return await message.reply("Неподходящий под мои стандарты пол. Выбери пол с клавиатуры")
 
 
-@dp.message_handler(state=Form.gender)
+@dp.message_handler(state=WelcomeForm.gender)
 async def process_gender(message: types.Message, state: FSMContext):
+    """Сохранение пола пользователя и вывод приветствия"""
     async with state.proxy() as data:
         data['gender'] = message.text
         markup = types.ReplyKeyboardRemove()
@@ -140,71 +144,6 @@ async def process_gender(message: types.Message, state: FSMContext):
     await state.finish()
 
 
-def rate_limit(limit: int, key=None):
-    def decorator(func):
-        setattr(func, 'throttling_rate_limit', limit)
-        if key:
-            setattr(func, 'throttling_key', key)
-        return func
-
-    return decorator
-
-
-class ThrottlingMiddleware(BaseMiddleware):
-    """https://github.com/aiogram/aiogram/blob/dev-2.x/examples/middleware_and_antiflood.py"""
-
-    def __init__(self, limit=DEFAULT_RATE_LIMIT, key_prefix='antiflood_'):
-        self.rate_limit = limit
-        self.prefix = key_prefix
-        super(ThrottlingMiddleware, self).__init__()
-
-    async def on_process_message(self, message: types.Message, data: dict):
-        """This handler is called when dispatcher receives a message"""
-        handler = current_handler.get()
-        dispatcher = Dispatcher.get_current()
-
-        if handler:
-            limit = getattr(handler, 'throttling_rate_limit', self.rate_limit)
-            key = getattr(handler, 'throttling_key', f"{self.prefix}_{handler.__name__}")
-        else:
-            limit = self.rate_limit
-            key = f"{self.prefix}_message"
-
-        try:
-            await dispatcher.throttle(key, rate=limit)
-        except Throttled as t:
-            await self.message_throttled(message, t)
-
-            raise CancelHandler()
-
-    async def message_throttled(self, message: types.Message, throttled: Throttled):
-        """Notify user only on first exceed and notify about unlocking only on last exceed"""
-        handler = current_handler.get()
-        dispatcher = Dispatcher.get_current()
-        if handler:
-            key = getattr(handler, 'throttling_key', f"{self.prefix}_{handler.__name__}")
-        else:
-            key = f"{self.prefix}_message"
-
-        delta = throttled.rate - throttled.delta
-
-        if throttled.exceeded_count <= 2:
-            await message.reply('Too many requests! ')
-
-        await asyncio.sleep(delta)
-
-        thr = await dispatcher.check_key(key)
-
-        if thr.exceeded_count == throttled.exceeded_count:
-            await message.reply('Unlocked.')
-
-
-@dp.message_handler(commands=['start'])
-@rate_limit(5, 'start')
-async def cmd_test(message: types.Message):
-    await message.reply('Test passed! You can use this command every 5 seconds.')
-
-
 @dp.message_handler(regexp='(^cat[s]?$|puss)')
 async def cats(message: types.Message):
     """Тест отправки картинки"""
@@ -213,8 +152,10 @@ async def cats(message: types.Message):
     await message.reply_photo(response.content, caption='Cats are here 😺')
 
 
-async def send_message_by_user_id(chat_id: int = 173585407, caption: str = "qwe", filename: str = None):
-    # await bot.send_message(chat_id=chat_id, text=text)
+async def send_message_by_user_id(chat_id: int = None, caption: str = "qwe", filename: str = None):
+    """Отправка сообщения в конкретный чат (173585407)"""
+    if not chat_id:
+        return
     print("send_message_by_user_id start")
     if filename:
         print("in filename")

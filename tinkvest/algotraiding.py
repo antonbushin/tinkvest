@@ -1,16 +1,17 @@
 """Методы алготрейдинга для реализации торгового робота"""
 
 import asyncio
+import pathlib
+from datetime import datetime
 import pandas as pd
 import yfinance as yf
 import mplfinance as mpf
-from datetime import datetime
-import pathlib
-from tinkvest.settings import HERE
-from tinkvest.utils import prepare_filename
+from tinkvest.constants import HERE
+from tinkvest.utils.utils import prepare_filename
 
 
 def ti_search_by_ticker(ticker: str) -> pd.DataFrame:
+    """Поиск данных по тикеру"""
     df = yf.download(tickers=ticker,
                      period="1mo",
                      interval="1h",
@@ -20,6 +21,7 @@ def ti_search_by_ticker(ticker: str) -> pd.DataFrame:
 
 # df.ta.sma(length=20, append=True)
 def prepare_df(df: pd.DataFrame) -> pd.DataFrame:
+    """Расчёт основных показателей"""
     df.ta.bbands(window=4, window_dev=20, append=True)
     df["ema12"] = df["Close"].ewm(span=12, adjust=False).mean()
     df["ema26"] = df["Close"].ewm(span=26, adjust=False).mean()
@@ -30,6 +32,7 @@ def prepare_df(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def generate_add_plots(df: pd.DataFrame, start_date: str) -> list:
+    """Генерация дополнительных графиков"""
     lower_b = df.loc[start_date:, ["BBL_5_2.0"]]
     upper_b = df.loc[start_date:, ["BBU_5_2.0"]]
     ema12 = df.loc[start_date:, ["ema12"]]
@@ -50,15 +53,16 @@ def generate_add_plots(df: pd.DataFrame, start_date: str) -> list:
 
 
 def prepare_plot(df: pd.DataFrame, start_date: str, add_plots: list, title: str) -> str:
+    """Подготовка графика"""
     print("HERE:", HERE)
     pathlib.Path(f"{HERE}/resources/images/").mkdir(parents=True, exist_ok=True)
-    filename = f"{HERE}/resources/images/" + title + "_" + datetime.now().strftime("%d.%m.%Y %H:%M:%S") + ".png"
+    filename = f"{HERE}/resources/images/" + title \
+               + "_" + datetime.now().strftime("%d.%m.%Y %H:%M:%S") + ".png"
     filename = prepare_filename(filename)
     print("filename:", filename)
     mpf.plot(data=df[start_date:],
              type="candle",
              addplot=add_plots,
-             # mav=(10, 20),
              volume=True,
              figscale=2,
              figratio=(10, 6),
@@ -72,6 +76,7 @@ def prepare_plot(df: pd.DataFrame, start_date: str, add_plots: list, title: str)
 
 
 async def get_plot(ticker: str) -> str:
+    """Предоставление графика"""
     start_date = "2021-12-01"
     ticker_data = ti_search_by_ticker(ticker=ticker)
     df = prepare_df(df=ticker_data)
