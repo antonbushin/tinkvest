@@ -1,5 +1,7 @@
-from setuptools import setup, find_packages
+"""setup.py"""
+
 import pathlib
+from setuptools import setup, find_packages
 from tinkvest import __version__
 
 HERE = pathlib.Path(__file__).parent.resolve()

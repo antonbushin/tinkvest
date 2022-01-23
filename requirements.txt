@@ -112,3 +112,4 @@ yfinance==0.1.69
 setuptools~=57.0.0
 typer~=0.4.0
 tinkvest~=0.1.0
+aioschedule~=0.5.2

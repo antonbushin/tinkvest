@@ -1,14 +1,21 @@
+"""Болталка для Телеграм-бота для сообщения, не являющихся ключевыми словами или командами"""
+
 from rapidfuzz import fuzz
 import pandas as pd
+
+from tinkvest.utils.logger import logger
+
+logger = logger(__name__)
 
 
 def talker_file_loader() -> pd.DataFrame:
     """Загрузка файла с фразами"""
-    df = pd.read_csv(filepath_or_buffer="resources/dialogues.txt",
-                     encoding="utf-8",
-                     delimiter=";",
-                     index_col=False,
-                     names=["phrase"], header=None)
+    df = pd.DataFrame(pd.read_csv(filepath_or_buffer="resources/dialogues.txt",
+                                  encoding="utf-8",
+                                  delimiter=";",
+                                  index_col=False,
+                                  names=["phrase"],
+                                  header=None))
     df["phrase"] = df["phrase"].astype(str)
     return df
 

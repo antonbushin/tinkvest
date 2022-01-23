@@ -5,7 +5,6 @@ from pydantic import BaseModel
 import tinvest
 from tinvest import MarketInstrument
 from project_secrets.tokens import TINKOFF_SANDBOX_TOKEN
-# from tinkvest.project_secrets.tokens import TINKOFF_SANDBOX_TOKEN
 from tinkvest.utils.logger import logger
 
 logger = logger(__name__)
@@ -35,14 +34,14 @@ async def ti_get_instruments():
 
     stocks = await client.get_market_stocks()
     result.extend(stocks.payload.instruments)
-    # etfs = await client.get_market_etfs()
-    # result.extend(etfs.payload.instruments)
-    # bonds = await client.get_market_bonds()
-    # result.extend(bonds.payload.instruments)
-    # currencies = await client.get_market_currencies()
-    # result.extend(currencies.payload.instruments)
+    etfs = await client.get_market_etfs()
+    result.extend(etfs.payload.instruments)
+    bonds = await client.get_market_bonds()
+    result.extend(bonds.payload.instruments)
+    currencies = await client.get_market_currencies()
+    result.extend(currencies.payload.instruments)
 
     result = {v.figi: v for v in result}.values()
     result = sorted(result, key=lambda d: d.ticker)
     session_data.instruments = result
-    logger.info(f"instruments len: {len(session_data.instruments)}")
+    logger.info("instruments len: %s", len(session_data.instruments))
